@@ -14,6 +14,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useAuth} from '../context/AuthContext';
 import {RootStackParamList} from '../navigation/types';
 import {
+  createNewDelivery,
   createSampleDeliveries,
   markDeliveryAsDelivered,
   subscribeToDriverDeliveries,
@@ -32,6 +33,7 @@ export const DeliveriesScreen = ({navigation}: Props) => {
   const {user, signOut} = useAuth();
   const [loading, setLoading] = useState(true);
   const [creatingSamples, setCreatingSamples] = useState(false);
+  const [creatingNew, setCreatingNew] = useState(false);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 
   useEffect(() => {
@@ -77,6 +79,22 @@ export const DeliveriesScreen = ({navigation}: Props) => {
     }
   };
 
+  const addNewDeliveries = async () => {
+    if (!user?.uid) {
+      Alert.alert('Session missing', 'Please sign in again.');
+      return;
+    }
+
+    try {
+      setCreatingNew(true);
+      await createNewDelivery(user.uid);
+    } catch (error) {
+      Alert.alert('Could not create deliveries', (error as Error).message);
+    } finally {
+      setCreatingNew(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -91,6 +109,14 @@ export const DeliveriesScreen = ({navigation}: Props) => {
             style={[styles.outlineButton, creatingSamples ? styles.disabledButton : null]}>
             <Text style={styles.outlineButtonText}>
               {creatingSamples ? 'Adding...' : 'Add Samples'}
+            </Text>
+          </Pressable>
+          <Pressable
+            disabled={creatingNew}
+            onPress={addNewDeliveries}
+            style={[styles.outlineButton, creatingNew ? styles.disabledButton : null]}>
+            <Text style={styles.outlineButtonText}>
+              {creatingNew ? 'Adding...' : 'Add New'}
             </Text>
           </Pressable>
         </View>

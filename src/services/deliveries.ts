@@ -1,6 +1,6 @@
 import firestore from '@react-native-firebase/firestore';
 
-import {Delivery} from '../types';
+import { Delivery } from '../types';
 
 const DELIVERY_COLLECTION = 'deliveries';
 
@@ -14,7 +14,7 @@ type DeliveryDoc = {
   longitude?: number;
   priority?: number;
   travelTimePriority?: number;
-  createdAt?: {toMillis?: () => number};
+  createdAt?: { toMillis?: () => number };
 };
 
 export const subscribeToDriverDeliveries = (
@@ -47,7 +47,9 @@ export const subscribeToDriverDeliveries = (
       onUpdate(deliveries);
     });
 
-export const markDeliveryAsDelivered = async (deliveryId: string): Promise<void> => {
+export const markDeliveryAsDelivered = async (
+  deliveryId: string,
+): Promise<void> => {
   await firestore().collection(DELIVERY_COLLECTION).doc(deliveryId).update({
     status: 'delivered',
     deliveredAt: firestore.FieldValue.serverTimestamp(),
@@ -55,7 +57,9 @@ export const markDeliveryAsDelivered = async (deliveryId: string): Promise<void>
   });
 };
 
-export const createSampleDeliveries = async (driverId: string): Promise<void> => {
+export const createSampleDeliveries = async (
+  driverId: string,
+): Promise<void> => {
   const sample = [
     {
       orderId: `IS-${Date.now().toString().slice(-6)}-01`,
@@ -101,4 +105,27 @@ export const createSampleDeliveries = async (driverId: string): Promise<void> =>
   });
 
   await batch.commit();
+};
+
+export const createNewDelivery = async (driverId: string): Promise<void> => {
+  try {
+    await firestore()
+      .collection(DELIVERY_COLLECTION)
+      .add({
+        orderId: `IS-${Date.now()}`,
+        customerName: 'New Customer',
+        address: 'Some Address',
+        status: 'pending',
+        assignedDriverId: driverId,
+        latitude: 28.61,
+        longitude: 77.2,
+        priority: 1,
+        travelTimePriority: 1,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      
+  } catch (error) {
+    console.error('Error creating new delivery:', error);
+  }
 };

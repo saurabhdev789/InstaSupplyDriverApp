@@ -153,6 +153,7 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
             'Fetching FCM token',
             TOKEN_TIMEOUT_MS,
           );
+          console.log('FCM token obtained:', token);
           if (token) {
             await driverDocRef(signedInUser.uid).set(
               {
