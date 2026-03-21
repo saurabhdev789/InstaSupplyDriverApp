@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "61231109343",
+    "project_id": "test-instasupplies",
+    "storage_bucket": "test-instasupplies.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:61231109343:android:6189d61bd9a1f5fc2c856a",
+        "android_client_info": {
+          "package_name": "com.instasupplydriverapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtKWNUttprKXqNj_0qwmyYjYuX13SPYwg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
