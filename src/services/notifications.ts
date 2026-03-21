@@ -1,5 +1,5 @@
 import {PermissionsAndroid, Platform} from 'react-native';
-import messaging from '@react-native-firebase/messaging';
+import messaging, {FirebaseMessagingTypes} from '@react-native-firebase/messaging';
 import notifee, {AndroidImportance} from '@notifee/react-native';
 
 import {navigate} from '../navigation/rootNavigation';
@@ -7,7 +7,7 @@ import {navigate} from '../navigation/rootNavigation';
 const DRIVER_CHANNEL_ID = 'driver-alerts';
 
 const displayNotification = async (
-  remoteMessage: messaging.FirebaseMessagingTypes.RemoteMessage,
+  remoteMessage: FirebaseMessagingTypes.RemoteMessage,
 ) => {
   await notifee.displayNotification({
     title: remoteMessage.notification?.title ?? 'New delivery assigned',
@@ -55,4 +55,3 @@ export const setupNotificationHandlers = async (): Promise<() => void> => {
 };
 
 export const showBackgroundNotification = displayNotification;
-

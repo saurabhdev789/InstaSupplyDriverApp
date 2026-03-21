@@ -9,6 +9,9 @@ export const navigate = <RouteName extends keyof RootStackParamList>(
   params?: RootStackParamList[RouteName],
 ): void => {
   if (navigationRef.isReady()) {
-    navigationRef.navigate(screen, params);
+    (navigationRef as unknown as {navigate: (name: RouteName, value?: unknown) => void}).navigate(
+      screen,
+      params,
+    );
   }
 };

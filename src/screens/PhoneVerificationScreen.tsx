@@ -14,37 +14,53 @@ import {
 import {useAuth} from '../context/AuthContext';
 
 export const PhoneVerificationScreen = () => {
-  const {busy, sendOtp, confirmOtp} = useAuth();
-  const [phone, setPhone] = useState('+919876543210');
+  const {busy, sendOtp, confirmOtp, authAction} = useAuth();
+  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [activeAction, setActiveAction] = useState<'send' | 'verify' | null>(null);
+  const isSending = activeAction === 'send';
+  const isVerifying = activeAction === 'verify';
+  const canSendOtp = !isSending && phone.trim().length > 0;
+  const canVerifyOtp = !isVerifying && otp.trim().length > 0;
 
   const onSendOtp = async () => {
     try {
+      setActiveAction('send');
       await sendOtp(phone);
       setOtpSent(true);
       Alert.alert('OTP Sent', 'Enter the verification code received on your phone.');
     } catch (error) {
       Alert.alert('Could not send OTP', (error as Error).message);
+    } finally {
+      setActiveAction(null);
     }
   };
 
   const onVerifyOtp = async () => {
     try {
-      await confirmOtp(otp);
+      setActiveAction('verify');
+      const result = await confirmOtp(otp);
+      console.log('OTP verification result:', result);
       Alert.alert('Verified', 'Phone number verification completed.');
     } catch (error) {
+      console.log('OTP verification error:', error);
       Alert.alert('Verification failed', (error as Error).message);
+    } finally {
+      setActiveAction(null);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       style={styles.container}>
       <Text style={styles.heading}>Verify Mobile Number</Text>
       <Text style={styles.subHeading}>
-        OTP verification is required before accessing deliveries.
+        {authAction === 'signUp'
+          ? 'Account created. Add your mobile number to receive OTP and finish onboarding.'
+          : 'OTP verification is required before accessing deliveries.'}
       </Text>
 
       <TextInput
@@ -55,8 +71,15 @@ export const PhoneVerificationScreen = () => {
         style={styles.input}
         value={phone}
       />
-      <Pressable disabled={busy} onPress={onSendOtp} style={styles.ctaButton}>
-        {busy ? <ActivityIndicator color="#f8fafc" /> : <Text style={styles.ctaText}>Send OTP</Text>}
+      <Pressable
+        disabled={!canSendOtp}
+        onPress={onSendOtp}
+        style={[styles.ctaButton, !canSendOtp ? styles.disabledButton : null]}>
+        {isSending ? (
+          <ActivityIndicator color="#f8fafc" />
+        ) : (
+          <Text style={styles.ctaText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
+        )}
       </Pressable>
 
       {otpSent ? (
@@ -69,8 +92,15 @@ export const PhoneVerificationScreen = () => {
             style={styles.input}
             value={otp}
           />
-          <Pressable disabled={busy} onPress={onVerifyOtp} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>Verify OTP</Text>
+          <Pressable
+            disabled={!canVerifyOtp || busy}
+            onPress={onVerifyOtp}
+            style={[styles.secondaryButton, !canVerifyOtp || busy ? styles.disabledButton : null]}>
+            {isVerifying ? (
+              <ActivityIndicator color="#f8fafc" />
+            ) : (
+              <Text style={styles.secondaryText}>Verify OTP</Text>
+            )}
           </Pressable>
         </View>
       ) : null}
@@ -133,5 +163,7 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     fontWeight: '700',
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
 });
-

@@ -1,6 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useLayoutEffect, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -12,7 +13,11 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 
 import {useAuth} from '../context/AuthContext';
 import {RootStackParamList} from '../navigation/types';
-import {markDeliveryAsDelivered, subscribeToDriverDeliveries} from '../services/deliveries';
+import {
+  createSampleDeliveries,
+  markDeliveryAsDelivered,
+  subscribeToDriverDeliveries,
+} from '../services/deliveries';
 import {Delivery} from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Deliveries'>;
@@ -26,6 +31,7 @@ const statusColor: Record<Delivery['status'], string> = {
 export const DeliveriesScreen = ({navigation}: Props) => {
   const {user, signOut} = useAuth();
   const [loading, setLoading] = useState(true);
+  const [creatingSamples, setCreatingSamples] = useState(false);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 
   useEffect(() => {
@@ -41,8 +47,34 @@ export const DeliveriesScreen = ({navigation}: Props) => {
     return unsubscribe;
   }, [user?.uid]);
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={signOut} style={styles.headerSignOutButton}>
+          <Text style={styles.headerSignOutText}>Sign out</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, signOut]);
+
   const markDelivered = async (deliveryId: string) => {
     await markDeliveryAsDelivered(deliveryId);
+  };
+
+  const addSampleDeliveries = async () => {
+    if (!user?.uid) {
+      Alert.alert('Session missing', 'Please sign in again.');
+      return;
+    }
+
+    try {
+      setCreatingSamples(true);
+      await createSampleDeliveries(user.uid);
+    } catch (error) {
+      Alert.alert('Could not create deliveries', (error as Error).message);
+    } finally {
+      setCreatingSamples(false);
+    }
   };
 
   return (
@@ -52,10 +84,34 @@ export const DeliveriesScreen = ({navigation}: Props) => {
           <Text style={styles.heading}>Assigned Deliveries</Text>
           <Text style={styles.subHeading}>{deliveries.length} total orders</Text>
         </View>
-        <Pressable onPress={signOut} style={styles.outlineButton}>
-          <Text style={styles.outlineButtonText}>Sign out</Text>
-        </Pressable>
+        <View style={styles.headerButtons}>
+          <Pressable
+            disabled={creatingSamples}
+            onPress={addSampleDeliveries}
+            style={[styles.outlineButton, creatingSamples ? styles.disabledButton : null]}>
+            <Text style={styles.outlineButtonText}>
+              {creatingSamples ? 'Adding...' : 'Add Samples'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
+
+      {!loading && deliveries.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>No deliveries assigned yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Tap Add Samples to create test deliveries for this driver.
+          </Text>
+          <Pressable
+            disabled={creatingSamples}
+            onPress={addSampleDeliveries}
+            style={[styles.primarySmallButton, creatingSamples ? styles.disabledButton : null]}>
+            <Text style={styles.primarySmallButtonText}>
+              {creatingSamples ? 'Creating...' : 'Create Sample Deliveries'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.loader}>
@@ -103,6 +159,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
+  headerButtons: {
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'flex-end',
+  },
   heading: {
     fontSize: 24,
     color: '#0f172a',
@@ -118,10 +179,61 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    minWidth: 108,
+    alignItems: 'center',
   },
   outlineButtonText: {
     color: '#0f172a',
     fontWeight: '600',
+    fontSize: 12,
+  },
+  headerSignOutButton: {
+    borderWidth: 1,
+    borderColor: '#94a3b8',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#ffffff',
+  },
+  headerSignOutText: {
+    color: '#0f172a',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  emptyState: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    padding: 14,
+  },
+  emptyTitle: {
+    color: '#1e3a8a',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptySubtitle: {
+    marginTop: 4,
+    color: '#334155',
+  },
+  primarySmallButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  primarySmallButtonText: {
+    color: '#f8fafc',
+    fontWeight: '700',
+    fontSize: 12,
   },
   loader: {
     flex: 1,
@@ -187,4 +299,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

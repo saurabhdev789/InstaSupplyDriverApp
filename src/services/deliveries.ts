@@ -55,3 +55,50 @@ export const markDeliveryAsDelivered = async (deliveryId: string): Promise<void>
   });
 };
 
+export const createSampleDeliveries = async (driverId: string): Promise<void> => {
+  const sample = [
+    {
+      orderId: `IS-${Date.now().toString().slice(-6)}-01`,
+      customerName: 'Rohan Mehta',
+      address: 'DLF Phase 3, Gurugram',
+      status: 'pending' as const,
+      latitude: 28.4961,
+      longitude: 77.0892,
+      priority: 2,
+      travelTimePriority: 1,
+    },
+    {
+      orderId: `IS-${Date.now().toString().slice(-6)}-02`,
+      customerName: 'Asha Verma',
+      address: 'Sector 50, Noida',
+      status: 'out_for_delivery' as const,
+      latitude: 28.5707,
+      longitude: 77.3684,
+      priority: 1,
+      travelTimePriority: 2,
+    },
+    {
+      orderId: `IS-${Date.now().toString().slice(-6)}-03`,
+      customerName: 'Neha Kapoor',
+      address: 'Rajouri Garden, Delhi',
+      status: 'pending' as const,
+      latitude: 28.6463,
+      longitude: 77.1166,
+      priority: 3,
+      travelTimePriority: 1,
+    },
+  ];
+
+  const batch = firestore().batch();
+  sample.forEach(item => {
+    const reference = firestore().collection(DELIVERY_COLLECTION).doc();
+    batch.set(reference, {
+      ...item,
+      assignedDriverId: driverId,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+};

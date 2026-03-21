@@ -85,11 +85,6 @@ export const OptimizedRouteScreen = () => {
           latitudeDelta: 0.18,
           longitudeDelta: 0.18,
         }}
-        region={{
-          ...driverLocation,
-          latitudeDelta: 0.18,
-          longitudeDelta: 0.18,
-        }}
         style={styles.map}>
         <Marker coordinate={driverLocation} pinColor="#2563eb" title="Driver" />
         {routeStops.map(stop => (
@@ -178,4 +173,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
