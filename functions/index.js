@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const functions = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 
 admin.initializeApp();
 
@@ -8,17 +8,22 @@ exports.notifyDriverOnNewDelivery = functions.firestore
   .onCreate(async snapshot => {
     const delivery = snapshot.data();
     const assignedDriverId = delivery?.assignedDriverId;
+    const tokenFromDelivery = delivery?.driverFcmToken;
 
-    if (!assignedDriverId) {
-      console.log('No assignedDriverId found. Skipping notification.');
+    if (!assignedDriverId && !tokenFromDelivery) {
+      console.log('No assignedDriverId or driverFcmToken found. Skipping notification.');
       return;
     }
 
-    const driverDoc = await admin.firestore().collection('drivers').doc(assignedDriverId).get();
-    const token = driverDoc.get('fcmToken');
+    let token = tokenFromDelivery;
+
+    if (!token && assignedDriverId) {
+      const driverDoc = await admin.firestore().collection('drivers').doc(assignedDriverId).get();
+      token = driverDoc.get('fcmToken');
+    }
 
     if (!token) {
-      console.log(`No FCM token for driver ${assignedDriverId}.`);
+      console.log(`No FCM token for delivery ${snapshot.id}.`);
       return;
     }
 
@@ -30,7 +35,7 @@ exports.notifyDriverOnNewDelivery = functions.firestore
       },
       data: {
         deliveryId: snapshot.id,
-        screen: 'Deliveries',
+        screen: 'OptimizedRoute',
       },
       android: {
         priority: 'high',
@@ -40,4 +45,3 @@ exports.notifyDriverOnNewDelivery = functions.firestore
     await admin.messaging().send(message);
     console.log(`Notification sent to driver ${assignedDriverId}.`);
   });
-

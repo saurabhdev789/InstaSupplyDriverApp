@@ -1,15 +1,21 @@
-import React, {useEffect, useLayoutEffect, useState} from 'react';
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
+import messaging from '@react-native-firebase/messaging';
+import {useFocusEffect} from '@react-navigation/native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import Geolocation from 'react-native-geolocation-service';
 
 import {useAuth} from '../context/AuthContext';
 import {RootStackParamList} from '../navigation/types';
@@ -18,10 +24,16 @@ import {
   createSampleDeliveries,
   markDeliveryAsDelivered,
   subscribeToDriverDeliveries,
+  subscribeToDriverTokenDeliveries,
 } from '../services/deliveries';
 import {Delivery} from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Deliveries'>;
+
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
 
 const statusColor: Record<Delivery['status'], string> = {
   pending: '#ca8a04',
@@ -34,7 +46,10 @@ export const DeliveriesScreen = ({navigation}: Props) => {
   const [loading, setLoading] = useState(true);
   const [creatingSamples, setCreatingSamples] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
-  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [assignedDeliveries, setAssignedDeliveries] = useState<Delivery[]>([]);
+  const [tokenDeliveries, setTokenDeliveries] = useState<Delivery[]>([]);
+  const [pushToken, setPushToken] = useState('');
+  const [loadingPushToken, setLoadingPushToken] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -42,12 +57,53 @@ export const DeliveriesScreen = ({navigation}: Props) => {
     }
 
     const unsubscribe = subscribeToDriverDeliveries(user.uid, items => {
-      setDeliveries(items);
+      setAssignedDeliveries(items);
       setLoading(false);
     });
 
     return unsubscribe;
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      return;
+    }
+
+    let unsubscribe: (() => void) | undefined;
+
+    void messaging()
+      .getToken()
+      .then(token => {
+        if (!token) {
+          setTokenDeliveries([]);
+          return;
+        }
+
+        unsubscribe = subscribeToDriverTokenDeliveries(token, items => {
+          setTokenDeliveries(items);
+          setLoading(false);
+        });
+      })
+      .catch(() => {
+        setTokenDeliveries([]);
+      });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [user?.uid]);
+
+  const deliveries = useMemo(() => {
+    const merged = new Map<string, Delivery>();
+    assignedDeliveries.forEach(item => {
+      merged.set(item.id, item);
+    });
+    tokenDeliveries.forEach(item => {
+      merged.set(item.id, item);
+    });
+
+    return Array.from(merged.values()).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  }, [assignedDeliveries, tokenDeliveries]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -63,6 +119,69 @@ export const DeliveriesScreen = ({navigation}: Props) => {
     await markDeliveryAsDelivered(deliveryId);
   };
 
+  const getCurrentLocation = useCallback(async (): Promise<Coordinates | undefined> => {
+    if (Platform.OS === 'android') {
+      const permission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        return undefined;
+      }
+    }
+
+    return new Promise(resolve => {
+      Geolocation.getCurrentPosition(
+        position => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        () => {
+          resolve(undefined);
+        },
+        {enableHighAccuracy: true, timeout: 12000, maximumAge: 10000},
+      );
+    });
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.uid) {
+        return undefined;
+      }
+
+      let isMounted = true;
+
+      const syncLastKnownLocation = async () => {
+        const currentLocation = await getCurrentLocation();
+        if (!isMounted || !currentLocation) {
+          return;
+        }
+
+        await firestore().collection('drivers').doc(user.uid).set(
+          {
+            lastKnownLocation: {
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+              updatedAt: firestore.FieldValue.serverTimestamp(),
+            },
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          },
+          {merge: true},
+        );
+      };
+
+      void syncLastKnownLocation().catch(error => {
+        console.warn('Last known location sync failed', error);
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    }, [getCurrentLocation, user?.uid]),
+  );
+
   const addSampleDeliveries = async () => {
     if (!user?.uid) {
       Alert.alert('Session missing', 'Please sign in again.');
@@ -71,7 +190,8 @@ export const DeliveriesScreen = ({navigation}: Props) => {
 
     try {
       setCreatingSamples(true);
-      await createSampleDeliveries(user.uid);
+      const currentLocation = await getCurrentLocation();
+      await createSampleDeliveries(user.uid, currentLocation);
     } catch (error) {
       Alert.alert('Could not create deliveries', (error as Error).message);
     } finally {
@@ -87,11 +207,28 @@ export const DeliveriesScreen = ({navigation}: Props) => {
 
     try {
       setCreatingNew(true);
-      await createNewDelivery(user.uid);
+      const currentLocation = await getCurrentLocation();
+      await createNewDelivery(user.uid, currentLocation);
     } catch (error) {
       Alert.alert('Could not create deliveries', (error as Error).message);
     } finally {
       setCreatingNew(false);
+    }
+  };
+
+  const showPushToken = async () => {
+    try {
+      setLoadingPushToken(true);
+      const token = await messaging().getToken();
+      setPushToken(token ?? '');
+
+      if (!token) {
+        Alert.alert('Token unavailable', 'Push token is not available yet. Please try again.');
+      }
+    } catch (error) {
+      Alert.alert('Could not fetch token', (error as Error).message);
+    } finally {
+      setLoadingPushToken(false);
     }
   };
 
@@ -119,23 +256,32 @@ export const DeliveriesScreen = ({navigation}: Props) => {
               {creatingNew ? 'Adding...' : 'Add New'}
             </Text>
           </Pressable>
+          <Pressable
+            disabled={loadingPushToken}
+            onPress={showPushToken}
+            style={[styles.outlineButton, loadingPushToken ? styles.disabledButton : null]}>
+            <Text style={styles.outlineButtonText}>
+              {loadingPushToken ? 'Loading...' : 'Show Push Token'}
+            </Text>
+          </Pressable>
         </View>
       </View>
+
+      {pushToken ? (
+        <View style={styles.tokenCard}>
+          <Text style={styles.tokenTitle}>Driver Push Token (long-press to copy)</Text>
+          <Text selectable style={styles.tokenValue}>
+            {pushToken}
+          </Text>
+        </View>
+      ) : null}
 
       {!loading && deliveries.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No deliveries assigned yet</Text>
           <Text style={styles.emptySubtitle}>
-            Tap Add Samples to create test deliveries for this driver.
+            Tap Add Samples in the top-right to create test deliveries for this driver.
           </Text>
-          <Pressable
-            disabled={creatingSamples}
-            onPress={addSampleDeliveries}
-            style={[styles.primarySmallButton, creatingSamples ? styles.disabledButton : null]}>
-            <Text style={styles.primarySmallButtonText}>
-              {creatingSamples ? 'Creating...' : 'Create Sample Deliveries'}
-            </Text>
-          </Pressable>
         </View>
       ) : null}
 
@@ -189,6 +335,26 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     gap: 6,
     alignItems: 'flex-end',
+  },
+  tokenCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#ffffff',
+  },
+  tokenTitle: {
+    color: '#0f172a',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  tokenValue: {
+    marginTop: 6,
+    color: '#1e293b',
+    fontSize: 12,
+    lineHeight: 18,
   },
   heading: {
     fontSize: 24,
@@ -247,19 +413,6 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     marginTop: 4,
     color: '#334155',
-  },
-  primarySmallButton: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  primarySmallButtonText: {
-    color: '#f8fafc',
-    fontWeight: '700',
-    fontSize: 12,
   },
   loader: {
     flex: 1,

@@ -9,7 +9,7 @@ import {LoginScreen} from '../screens/LoginScreen';
 import {OptimizedRouteScreen} from '../screens/OptimizedRouteScreen';
 import {PhoneVerificationScreen} from '../screens/PhoneVerificationScreen';
 import {setupNotificationHandlers} from '../services/notifications';
-import {navigationRef} from './rootNavigation';
+import {navigationRef, onNavigationReady} from './rootNavigation';
 import {RootStackParamList} from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -45,7 +45,7 @@ export const AppNavigator = () => {
   const showPhoneScreen = Boolean(user) && !phoneVerified;
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer onReady={onNavigationReady} ref={navigationRef}>
       <Stack.Navigator>
         {showAuthScreens ? (
           <Stack.Screen component={LoginScreen} name="Login" options={{headerShown: false}} />
@@ -84,4 +84,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
 });
-
