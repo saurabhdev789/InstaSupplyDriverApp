@@ -17,6 +17,10 @@ const navigateFromData = (data?: NotificationData) => {
   navigate(targetScreen);
 };
 
+export const handleNotificationPressData = (data?: NotificationData): void => {
+  navigateFromData(data);
+};
+
 const ensureDriverChannel = async () => {
   await notifee.createChannel({
     id: DRIVER_CHANNEL_ID,
@@ -61,18 +65,18 @@ export const setupNotificationHandlers = async (): Promise<() => void> => {
 
   const notifeeForegroundSubscription = notifee.onForegroundEvent(({type, detail}) => {
     if (type === EventType.PRESS) {
-      navigateFromData(detail.notification?.data as NotificationData | undefined);
+      handleNotificationPressData(detail.notification?.data as NotificationData | undefined);
     }
   });
 
   const initialMessage = await messaging().getInitialNotification();
   if (initialMessage) {
-    navigateFromData(initialMessage.data);
+    handleNotificationPressData(initialMessage.data);
   }
 
   const initialLocalNotification = await notifee.getInitialNotification();
   if (initialLocalNotification?.notification?.data) {
-    navigateFromData(initialLocalNotification.notification.data as NotificationData);
+    handleNotificationPressData(initialLocalNotification.notification.data as NotificationData);
   }
 
   return () => {
