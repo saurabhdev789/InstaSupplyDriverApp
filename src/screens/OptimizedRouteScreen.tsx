@@ -37,10 +37,14 @@ const markerOffset = (index: number, radius = 0.00028): Coordinates => {
     return {latitude: 0, longitude: 0};
   }
 
-  const angle = (index - 1) * (Math.PI / 3);
+  // Spiral placement prevents overlap when many deliveries share the same lat/lng.
+  const goldenAngle = 2.399963229728653; // ~137.5 degrees in radians
+  const angle = (index - 1) * goldenAngle;
+  const ringScale = Math.sqrt(index);
+  const effectiveRadius = radius * ringScale;
   return {
-    latitude: Math.sin(angle) * radius,
-    longitude: Math.cos(angle) * radius,
+    latitude: Math.sin(angle) * effectiveRadius,
+    longitude: Math.cos(angle) * effectiveRadius,
   };
 };
 
