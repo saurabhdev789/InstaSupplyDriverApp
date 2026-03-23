@@ -32,20 +32,19 @@ const defaultLocation = {
   longitude: 77.209,
 };
 
-const markerOffset = (index: number): Coordinates => {
+const markerOffset = (index: number, radius = 0.00028): Coordinates => {
   if (index === 0) {
     return {latitude: 0, longitude: 0};
   }
 
   const angle = (index - 1) * (Math.PI / 3);
-  const radius = 0.00028;
   return {
     latitude: Math.sin(angle) * radius,
     longitude: Math.cos(angle) * radius,
   };
 };
 
-const isNear = (from: Coordinates, to: Coordinates, threshold = 0.00012): boolean =>
+const isNear = (from: Coordinates, to: Coordinates, threshold = 0.00025): boolean =>
   Math.abs(from.latitude - to.latitude) <= threshold &&
   Math.abs(from.longitude - to.longitude) <= threshold;
 
@@ -158,7 +157,9 @@ export const OptimizedRouteScreen = () => {
           {latitude: item.latitude, longitude: item.longitude},
           driverLocation,
         );
-        const offset = markerOffset(overlapsDriver ? index + 1 : index);
+        const offsetIndex = overlapsDriver ? index + 1 : index;
+        const radius = overlapsDriver ? 0.00042 : 0.00028;
+        const offset = markerOffset(offsetIndex, radius);
         mapped.push({
           ...item,
           markerLatitude: item.latitude + offset.latitude,
@@ -225,13 +226,14 @@ export const OptimizedRouteScreen = () => {
           longitudeDelta: 0.18,
         }}
         style={styles.map}>
-        <Marker coordinate={driverLocation} pinColor="#2563eb" title="Driver" />
+        <Marker coordinate={driverLocation} pinColor="#2563eb" title="Driver" zIndex={1} />
         {displayedDeliveries.map(item => (
           <Marker
             coordinate={{latitude: item.markerLatitude, longitude: item.markerLongitude}}
             description={item.address}
             key={item.id}
             pinColor={item.status === 'delivered' ? '#16a34a' : '#dc2626'}
+            zIndex={2}
             title={
               item.status === 'delivered'
                 ? `Delivered - ${item.customerName}`
