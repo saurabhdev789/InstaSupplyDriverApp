@@ -17,6 +17,8 @@ def mapsApiKey = project.findProperty("MAPS_API_KEY") ?: localProperties.getProp
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    // Force a modern Node runtime for Metro bundle tasks run by Gradle.
+    nodeExecutableAndArgs = ["/Users/gauravsaneja/.nvm/versions/node/v24.9.0/bin/node"]
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
